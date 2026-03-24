@@ -1,8 +1,12 @@
-
-
-
 let colors = ["#2ec4b6", "#e71d36", "#ff9f1c"];
 let anemoneData = [];
+let bubbles = [];
+let activeParticles = []; // 🌟 新增：全域粒子儲存庫，讓氣泡消失後粒子能繼續活著
+let popSound;
+
+function preload() {
+    popSound = loadSound('pop.mp3');
+}
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
@@ -28,7 +32,6 @@ function generateAnemoneData() {
             height / 2
         );
 
-        // 搖擺幅度隨機
         const baseAmplitude = 200;
         const randomAmplitude = baseAmplitude * random(0.5, 1.5);
 
@@ -40,6 +43,92 @@ function generateAnemoneData() {
             height: randomHeight,
             amplitude: randomAmplitude
         });
+    }
+}
+
+function createBubble() {
+    // 🌟 隨機：70% 的氣泡會在視窗內(10%~90%高)就破掉，其餘則是飄到最頂端或老死才破
+    let earlyPop = random() < 0.7; 
+    let popY = earlyPop ? random(height * 0.1, height * 0.9) : -50; 
+
+    return {
+        x: random(width),
+        y: height,
+        radius: random(8, 25),
+        speedY: random(0.5, 1.5) * 1.7,
+        opacity: random(80, 200),
+        life: 0,
+        maxLife: random(300, 500),
+        popY: popY // 紀錄破裂高度
+    };
+}
+
+function burstBubble(bubble) {
+    if (popSound) {
+        popSound.play();
+    }
+    
+    // 建立破裂粒子，推送到「全域」陣列中
+    for (let i = 0; i < 12; i++) {
+        let angle = TWO_PI / 12 * i;
+        let velocity = createVector(cos(angle) * 3, sin(angle) * 3);
+        activeParticles.push({
+            x: bubble.x,
+            y: bubble.y,
+            vx: velocity.x,
+            vy: velocity.y,
+            life: 0,
+            maxLife: 15,
+            opacity: bubble.opacity * 0.8
+        });
+    }
+}
+
+function updateBubbles() {
+    if (random() < 0.05) {
+        bubbles.push(createBubble());
+    }
+    
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+        let bubble = bubbles[i];
+        
+        bubble.y -= bubble.speedY;
+        bubble.life++;
+        
+        // 🌟 判定破掉：達到設定的隨機破裂高度、飄出視窗上方、或壽命耗盡
+        if (bubble.y < bubble.popY || bubble.y < -bubble.radius || bubble.life > bubble.maxLife) {
+            burstBubble(bubble);
+            bubbles.splice(i, 1);
+            continue;
+        }
+        
+        noStroke();
+        let bubbleAlpha = bubble.opacity * (1 - bubble.life / bubble.maxLife);
+        fill(255, bubbleAlpha);
+        circle(bubble.x, bubble.y, bubble.radius * 2);
+        
+        let highlightAlpha = bubbleAlpha * 0.6;
+        fill(255, highlightAlpha);
+        let highlightX = bubble.x - bubble.radius * 0.4;
+        let highlightY = bubble.y - bubble.radius * 0.4;
+        circle(highlightX, highlightY, bubble.radius * 0.5);
+    }
+    
+    // 🌟 繪製獨立於氣泡的粒子特效
+    for (let i = activeParticles.length - 1; i >= 0; i--) {
+        let particle = activeParticles[i];
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        particle.life++;
+        
+        let particleAlpha = particle.opacity * (1 - particle.life / particle.maxLife);
+        fill(255, particleAlpha);
+        noStroke();
+        circle(particle.x, particle.y, 3);
+        
+        if (particle.life >= particle.maxLife) {
+            activeParticles.splice(i, 1);
+        }
     }
 }
 
@@ -65,41 +154,28 @@ function anemone(data){
             let progress = i / 300;
 
             let deltaFactor = map(i, 0, 50, 0, 1, true);
-            let deltaX = deltaFactor * (noise(i / 400, frameCount / 100, data.id) - 0.5) * data.amplitude;
+            let deltaX = deltaFactor * (noise(i / 400, frameCount / 100 * 0.5, data.id) - 0.5) * data.amplitude; 
 
-            // ===== ⭐ 滑鼠互動（最終版） =====
-
-            // 影響半徑（只影響附近）
             let influenceRadius = width * 0.30;
 
             let distToMouse = abs(mouseX - xx);
 
-            // 平滑距離衰減
             let normDist = constrain(1 - distToMouse / influenceRadius, 0, 1);
             let distFactor = pow(normDist, 2);
 
-            // 海葵本身高度影響（上半部動比較大）
             let heightFactor = pow(progress, 1.8);
 
-            // 滑鼠Y影響（越上面影響越大）
-            // ⭐ 轉成 0~1
             let yNorm = mouseY / height;
 
-            // ⭐ 計算「距離畫面中間的距離」
             let distFromCenter = abs(yNorm - 0.5);
 
-            // ⭐ 增加自然感（曲線）
             let mouseYFactor = pow(1 - distFromCenter * 2, 2);
 
-            // 綜合垂直影響
             let verticalInteraction = heightFactor * mouseYFactor;
 
-            // 滑鼠水平推力
             let mouseDelta = map(mouseX, 0, width, -200, 200);
 
             let mouseEffect = mouseDelta * distFactor * verticalInteraction;
-
-            // =============================
 
             let yy = -progress * data.height;
 
@@ -111,18 +187,18 @@ function anemone(data){
 }
 
 function draw() {
-    background(0);
+    background("#2C3B5E");
     translate(0, height);
     noFill();
     
     for (let i = 0; i < anemoneData.length; i++) {
         anemone(anemoneData[i]);
     }
+    
+    translate(0, -height);
+    updateBubbles();
 }
 
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
-
-
-
