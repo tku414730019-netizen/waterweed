@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+ 
     <title>Sketch</title>
-
+ 
     <link rel="stylesheet" type="text/css" href="style.css">
-
+ 
     <script src="libraries/p5.min.js"></script>
     <script src="libraries/p5.sound.min.js"></script>
   </head>
-
+ 
   <body>
+    <iframe id="bgIframe" src="https://www.et.tku.edu.tw/"></iframe>
+    <!-- z-index: 2 的透明層，負責把滑鼠座標傳給 p5.js -->
+    <div id="mouseOverlay"></div>
     <script src="sketch.js"></script>
   </body>
 </html>
