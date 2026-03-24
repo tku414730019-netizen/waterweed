@@ -1,8 +1,13 @@
 let colors = ["#2ec4b6", "#e71d36", "#ff9f1c"];
 let anemoneData = [];
 let bubbles = [];
-let activeParticles = []; // 🌟 新增：全域粒子儲存庫，讓氣泡消失後粒子能繼續活著
+let activeParticles = [];
 let popSound;
+
+// 自行追蹤滑鼠座標，不依賴 p5 的 mouseX/mouseY
+// （因為 canvas 設了 pointer-events:none，p5 收不到滑鼠事件）
+let mx = 0;
+let my = 0;
 
 function preload() {
     popSound = loadSound('pop.mp3');
@@ -11,6 +16,20 @@ function preload() {
 function setup() {
     createCanvas(windowWidth, windowHeight);
     generateAnemoneData();
+
+    // 從 #mouseOverlay 這個透明 div 監聽滑鼠事件
+    const overlay = document.getElementById('mouseOverlay');
+
+    overlay.addEventListener('mousemove', (e) => {
+        mx = e.clientX;
+        my = e.clientY;
+    });
+
+    overlay.addEventListener('mouseleave', () => {
+        // 離開視窗時讓海葵回到靜止狀態（置中）
+        mx = width / 2;
+        my = height / 2;
+    });
 }
 
 function generateAnemoneData() {
@@ -47,7 +66,6 @@ function generateAnemoneData() {
 }
 
 function createBubble() {
-    // 🌟 隨機：70% 的氣泡會在視窗內(10%~90%高)就破掉，其餘則是飄到最頂端或老死才破
     let earlyPop = random() < 0.7; 
     let popY = earlyPop ? random(height * 0.1, height * 0.9) : -50; 
 
@@ -59,7 +77,7 @@ function createBubble() {
         opacity: random(80, 200),
         life: 0,
         maxLife: random(300, 500),
-        popY: popY // 紀錄破裂高度
+        popY: popY
     };
 }
 
@@ -68,7 +86,6 @@ function burstBubble(bubble) {
         popSound.play();
     }
     
-    // 建立破裂粒子，推送到「全域」陣列中
     for (let i = 0; i < 12; i++) {
         let angle = TWO_PI / 12 * i;
         let velocity = createVector(cos(angle) * 3, sin(angle) * 3);
@@ -95,7 +112,6 @@ function updateBubbles() {
         bubble.y -= bubble.speedY;
         bubble.life++;
         
-        // 🌟 判定破掉：達到設定的隨機破裂高度、飄出視窗上方、或壽命耗盡
         if (bubble.y < bubble.popY || bubble.y < -bubble.radius || bubble.life > bubble.maxLife) {
             burstBubble(bubble);
             bubbles.splice(i, 1);
@@ -114,7 +130,6 @@ function updateBubbles() {
         circle(highlightX, highlightY, bubble.radius * 0.5);
     }
     
-    // 🌟 繪製獨立於氣泡的粒子特效
     for (let i = activeParticles.length - 1; i >= 0; i--) {
         let particle = activeParticles[i];
         particle.x += particle.vx;
@@ -158,14 +173,16 @@ function anemone(data){
 
             let influenceRadius = width * 0.30;
 
-            let distToMouse = abs(mouseX - xx);
+            // 使用自訂的 mx 取代 p5 內建的 mouseX
+            let distToMouse = abs(mx - xx);
 
             let normDist = constrain(1 - distToMouse / influenceRadius, 0, 1);
             let distFactor = pow(normDist, 2);
 
             let heightFactor = pow(progress, 1.8);
 
-            let yNorm = mouseY / height;
+            // 使用自訂的 my 取代 p5 內建的 mouseY
+            let yNorm = my / height;
 
             let distFromCenter = abs(yNorm - 0.5);
 
@@ -173,7 +190,8 @@ function anemone(data){
 
             let verticalInteraction = heightFactor * mouseYFactor;
 
-            let mouseDelta = map(mouseX, 0, width, -200, 200);
+            // 使用自訂的 mx 取代 p5 內建的 mouseX
+            let mouseDelta = map(mx, 0, width, -200, 200);
 
             let mouseEffect = mouseDelta * distFactor * verticalInteraction;
 
@@ -187,7 +205,7 @@ function anemone(data){
 }
 
 function draw() {
-    background("#2C3B5E");
+    clear();
     translate(0, height);
     noFill();
     
@@ -201,4 +219,7 @@ function draw() {
 
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
+    // 重置滑鼠到畫面中心，避免 resize 後殘留舊座標
+    mx = width / 2;
+    my = height / 2;
 }
